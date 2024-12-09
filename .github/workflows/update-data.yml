@@ -22,7 +22,7 @@ jobs:
           deno-version: v2.x
       - name: Fetch data
         run: |
-          deno run -A leaderboard.ts fetch
+          deno run -A leaderboard.ts update
       - uses: EndBug/add-and-commit@v9
         name: Commit data
         with:
