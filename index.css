@@ -1,0 +1,111 @@
+* Basic Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Body Styling */
+body {
+  font-family: 'Arial', sans-serif;
+  background-color: #f4f4f4;
+  color: #333;
+  line-height: 1.6;
+  padding: 20px;
+}
+
+h1 {
+  text-align: center;
+  font-size: 2rem;
+  color: #2c3e50;
+  margin-bottom: 40px;
+  font-weight: bold;
+}
+
+/* Styling for the Ordered List */
+ol {
+  list-style-type: decimal;
+  padding-left: 20px;
+  margin: 0 auto;
+  max-width: 1000px;
+}
+
+li {
+  background-color: #fff;
+  margin: 10px 0;
+  padding: 10px 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1rem;
+}
+
+li a {
+  color: #2980b9;
+  text-decoration: none;
+  font-weight: bold;
+  transition: color 0.3s ease;
+}
+
+li a:hover {
+  color: #1abc9c;
+}
+
+/* Gradient progress bars for rankings */
+li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 100%;
+  background: linear-gradient(180deg, #c9b037, #d7d7d7, #6a3805);
+  border-radius: 5px;
+}
+
+/* Highlight the first, second, and third positions */
+li:nth-child(1) {
+  background-color: #c9b037;
+  color: black;
+}
+
+li:nth-child(2) {
+  background-color: #d7d7d7;
+  color: black;
+}
+
+li:nth-child(3) {
+  background-color: #6a3805;
+  color: white;
+}
+
+/* Add a little hover effect for the top 3 */
+li:nth-child(1):hover,
+li:nth-child(2):hover,
+li:nth-child(3):hover {
+  opacity: 0.8;
+}
+
+/* Add a small visual effect for "Stats seem invalid" entries */
+li span.invalid {
+  color: #e74c3c;
+  font-style: italic;
+}
+
+/* Mobile Responsiveness */
+@media screen and (max-width: 768px) {
+  h1 {
+    font-size: 1.6rem;
+  }
+
+  ol {
+    padding-left: 10px;
+  }
+
+  li {
+    font-size: 0.9rem;
+    padding: 8px 10px;
+  }
+}
