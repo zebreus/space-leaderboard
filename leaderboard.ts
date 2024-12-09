@@ -8,7 +8,7 @@ type SpaceState = {
 };
 
 const generateData = async () => {
-    const fetchRetry = async (url: string, retriesLeft: number) {
+    const fetchRetry = async (url: string, retriesLeft: number) => {
         try {
         const response = await fetch(url);
         return response;
