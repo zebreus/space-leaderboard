@@ -8,7 +8,21 @@ type SpaceState = {
 };
 
 const generateData = async () => {
-const directory = await fetch("https://directory.spaceapi.io/")
+    const fetchRetry = async (url: string, retriesLeft: number) {
+        try {
+        const response = await fetch(url);
+        return response;
+        } catch (e) {
+            if (retriesLeft <= 0) {
+                throw e
+            }
+            await (new Promise((resolve) => setTimeout(resolve, 5000)))
+            return await fetchRetry(url, retriesLeft-1);
+        }
+    
+    }
+
+const directory = await fetchRetry("https://directory.spaceapi.io/", 3)
 const directoryJson = await  directory.json()
 let spaces = Object.entries(directoryJson).map(([name, url]) => ({
     name,
@@ -18,11 +32,13 @@ let spaces = Object.entries(directoryJson).map(([name, url]) => ({
 
 console.log(`Found ${spaces.length} hackspaces`)
 
+
+
 const getSpaceScore = async (spacename:string) => {
     const sanitized_name = spacename.replaceAll(/ /g, "+");
     const url = `https://mapall.space/heatmap/show.php?id=${sanitized_name}`;
     console.log(`Fetching ${url}`)
-    const textResponse = await fetch(url);
+    const textResponse = await fetchRetry(url, 3);
       const textData = await textResponse.text();
 
     //   console.log(textData)
