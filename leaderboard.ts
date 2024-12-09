@@ -35,7 +35,7 @@ console.log(`Found ${spaces.length} hackspaces`)
 
 
 const getSpaceScore = async (spacename:string) => {
-    const sanitized_name = spacename.replaceAll(/ /g, "+");
+    const sanitized_name = spacename.replaceAll(/ /g, "+").replaceAll("#", "%23");
     const url = `https://mapall.space/heatmap/show.php?id=${sanitized_name}`;
     console.log(`Fetching ${url}`)
     const textResponse = await fetchRetry(url, 3);
