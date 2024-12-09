@@ -126,5 +126,14 @@ const generateHtml = async () => {
 await Deno.writeTextFile("index.html", html)
 }
 
-// await generateData()
-await generateHtml();
+const action = Deno.args[0]
+switch (action) {
+    case "update":
+        await generateData();
+        break
+    case "generate":
+        await generateHtml();
+        break
+    default:
+        console.error("Invalid command ", action)
+}
