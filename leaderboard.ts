@@ -1,127 +1,182 @@
 import { DOMParser } from "jsr:@b-fuze/deno-dom";
 
 type SpaceState = {
-    score: number;
-    name: string;
-    url: string;
-    heatmapUrl: string;
+  score: number;
+  name: string;
+  url: string;
+  heatmapUrl: string;
+};
+
+const writeScoresFile = async (spacesWithScores: SpaceState[]) => {
+  await Deno.writeTextFile("scores.json", JSON.stringify(spacesWithScores));
+};
+
+const loadExistingScores = async (): Promise<SpaceState[] | null> => {
+  try {
+    const data = await Deno.readTextFile("scores.json");
+    return JSON.parse(data) as SpaceState[];
+  } catch {
+    return null;
+  }
 };
 
 const generateData = async () => {
-    const fetchRetry = async (url: string, retriesLeft: number) => {
-        try {
-        const response = await fetch(url);
-        return response;
-        } catch (e) {
-            if (retriesLeft <= 0) {
-                throw e
-            }
-            await (new Promise((resolve) => setTimeout(resolve, 5000)))
-            return await fetchRetry(url, retriesLeft-1);
-        }
-    
+  const fetchRetry = async (url: string, retriesLeft: number) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} error fetching ${url}`);
+      }
+      return response;
+    } catch (e) {
+      if (retriesLeft <= 0) {
+        throw e;
+      }
+      await (new Promise((resolve) => setTimeout(resolve, 5000)));
+      return await fetchRetry(url, retriesLeft - 1);
     }
+  };
 
-const directory = await fetchRetry("https://directory.spaceapi.io/", 3)
-const directoryJson = await  directory.json()
-let spaces = Object.entries(directoryJson).map(([name, url]) => ({
-    name,
-    url: url as string
-}))
-// spaces = [spaces[0]]
+  try {
+    const directory = await fetchRetry("https://directory.spaceapi.io/", 3);
+    const directoryJson = await directory.json();
+    let spaces = Object.entries(directoryJson).map(([name, url]) => ({
+      name,
+      url: url as string,
+    }));
+    // spaces = [spaces[0]]
 
-console.log(`Found ${spaces.length} hackspaces`)
+    console.log(`Found ${spaces.length} hackspaces`);
 
-
-
-const getSpaceScore = async (spacename:string) => {
-    const sanitized_name = spacename.replaceAll(/ /g, "+").replaceAll("#", "%23");
-    const url = `https://mapall.space/heatmap/show.php?id=${sanitized_name}`;
-    console.log(`Fetching ${url}`)
-    const textResponse = await fetchRetry(url, 3);
+    const getSpaceScore = async (spacename: string) => {
+      const sanitized_name = spacename.replaceAll(/ /g, "+").replaceAll(
+        "#",
+        "%23",
+      );
+      const url = `https://mapall.space/heatmap/show.php?id=${sanitized_name}`;
+      console.log(`Fetching ${url}`);
+      const textResponse = await fetchRetry(url, 3);
       const textData = await textResponse.text();
 
-    //   console.log(textData)
+      //   console.log(textData)
       const dom = new DOMParser().parseFromString(textData, "text/html");
+      if (!dom) {
+        throw new Error(
+          `Failed to parse HTML response for ${spacename}`,
+        );
+      }
 
-      const avgsLastMonth = [...dom.querySelectorAll('*[name="maand"]+*+table.heatmap tbody tr:last-child td')];
-      const avgsNums = avgsLastMonth.map(e => e.textContent ?? "").filter(e=>e).map(e => parseFloat(e)).filter(e=>!Number.isNaN(e))
-      const score = avgsNums.reduce((total, thiss) => total + thiss) / avgsNums.length
+      const avgsLastMonth = [
+        ...dom.querySelectorAll(
+          '*[name="maand"]+*+table.heatmap tbody tr:last-child td',
+        ),
+      ];
+      const avgsNums = avgsLastMonth.map((e) => e.textContent ?? "").filter(
+        (e) => e,
+      ).map((e) => parseFloat(e)).filter((e) => !Number.isNaN(e));
+      if (avgsNums.length === 0) {
+        throw new Error(
+          `No heatmap data found for ${spacename}. The remote source may not have data for this space or the page structure may have changed.`,
+        );
+      }
+      const score = avgsNums.reduce((total, thiss) => total + thiss) /
+        avgsNums.length;
 
       return {
         score,
-        heatmapUrl: url
-    }
-}
+        heatmapUrl: url,
+      };
+    };
 
-const states = spaces.map(({name, url}, index) => {
-    const result = (async () => {
-        await (new Promise((resolve) => setTimeout(resolve, 5000 * index)))
-    try {
-        const {score, heatmapUrl} = await getSpaceScore(name)
-        console.error(`Fetched score ${score} for ${name}`)
+    const states = spaces.map(({ name, url }, index) => {
+      const result = (async () => {
+        await (new Promise((resolve) => setTimeout(resolve, 5000 * index)));
+        const { score, heatmapUrl } = await getSpaceScore(name);
+        console.error(`Fetched score ${score} for ${name}`);
         return {
-            score,
-            name,
-            url,
-            heatmapUrl
-        }
+          score,
+          name,
+          url,
+          heatmapUrl,
+        };
+      })();
+      return result;
+    });
 
-    } catch(e){
-        console.error( `Failed to fetch data for ${name}: ${e}`)
-        throw `Failed to fetch data for ${name}: ${e}`
+    const settledStates = await Promise.allSettled(states);
+    const spacesWithScores = settledStates.flatMap((settledPromise) => {
+      if (settledPromise.status === "rejected") {
+        console.error(settledPromise.reason);
+        return [];
+      }
+      return [settledPromise.value];
+    });
+
+    console.log(spacesWithScores);
+    if (spacesWithScores.length === 0) {
+      const previousScores = await loadExistingScores();
+      if (previousScores) {
+        console.warn(
+          "All space data fetches failed; using existing scores",
+        );
+        await writeScoresFile(previousScores);
+        return;
+      }
     }
-})()
-return result
-})
-
-
-const settledStates = await Promise.allSettled(states)
-const spacesWithScores = settledStates.flatMap((settledPromise) => {
-    if (settledPromise.status == "rejected") {
-        console.error(settledPromise.reason)
-        return []
+    await writeScoresFile(spacesWithScores);
+  } catch (error) {
+    console.error("Failed to update hackspace data:", error);
+    const previousScores = await loadExistingScores();
+    if (previousScores) {
+      console.warn(
+        "Using existing scores because the update could not be completed",
+      );
+      await writeScoresFile(previousScores);
+      return;
     }
-   return [settledPromise.value]
-})
 
-console.log(spacesWithScores)
-await Deno.writeTextFile("scores.json",JSON.stringify(spacesWithScores))
-}
+    console.error("No previous scores available; writing an empty result");
+    await writeScoresFile([]);
+  }
+};
 
 const loadData = async () => {
-    const data = await Deno.readTextFile("scores.json")
-    const jsonData = JSON.parse(data) as SpaceState[]
-    return jsonData
-}
-
-
+  const data = await Deno.readTextFile("scores.json");
+  const jsonData = JSON.parse(data) as SpaceState[];
+  return jsonData;
+};
 
 const sanitizeData = (data: SpaceState[]) => {
-    const sanitizedData = data.map((hackspace) => {
-        if (hackspace.score == 100) {
-            // If they were literally never closed, they get disqualified from the leaderboard
-            return {
-                ...hackspace,
-                score: -1,
-                disqualified: "Stats seem invalid as the space was literally open at all times last month"
-            }
-        }
-        return {...hackspace,
-            disqualified: ""
-        }
-    })
-    return sanitizedData
-}
+  const sanitizedData = data.map((hackspace) => {
+    if (hackspace.score === 100) {
+      // If they were literally never closed, they get disqualified from the leaderboard
+      return {
+        ...hackspace,
+        score: -1,
+        disqualified:
+          "Stats seem invalid as the space was literally open at all times last month",
+      };
+    }
+    return { ...hackspace, disqualified: "" };
+  });
+  return sanitizedData;
+};
 
 const generateHtml = async () => {
-    const unsanitizedData = await loadData();
-    const data = sanitizeData(unsanitizedData)
-    const sortedData = data.toSorted((a,b) => b.score - a.score)
-    const content = sortedData.map(({
-        name, score, heatmapUrl, disqualified = ""
-    }, index) => `<li href="${heatmapUrl}">${index}. <a href="${heatmapUrl}">${name}</a>: ${disqualified || `${score.toFixed(2)}%`}</li>`).join("\n")
-    const html =  `<!DOCTYPE html>
+  const unsanitizedData = await loadData();
+  const data = sanitizeData(unsanitizedData);
+  const sortedData = data.toSorted((a, b) => b.score - a.score);
+  const content = sortedData.map(({
+    name,
+    score,
+    heatmapUrl,
+    disqualified = "",
+  }, index) =>
+    `<li href="${heatmapUrl}">${index}. <a href="${heatmapUrl}">${name}</a>: ${
+      disqualified || `${score.toFixed(2)}%`
+    }</li>`
+  ).join("\n");
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -137,19 +192,22 @@ const generateHtml = async () => {
   ${content}
   </ol>
 </body>
-</html>`
+</html>`;
 
-await Deno.writeTextFile("index.html", html)
-}
+  await Deno.writeTextFile("index.html", html);
+};
 
-const action = Deno.args[0]
+const action = Deno.args[0];
 switch (action) {
-    case "update":
-        await generateData();
-        break
-    case "generate":
-        await generateHtml();
-        break
-    default:
-        console.error("Invalid command ", action)
+  case "update":
+    await generateData();
+    break;
+  case "generate":
+    await generateHtml();
+    break;
+  default:
+    console.error(
+      `Invalid command ${action}. Expected "update" or "generate"; exiting with error code 1`,
+    );
+    Deno.exit(1);
 }
