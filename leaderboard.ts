@@ -24,6 +24,9 @@ const generateData = async () => {
   const fetchRetry = async (url: string, retriesLeft: number) => {
     try {
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} error fetching ${url}`);
+      }
       return response;
     } catch (e) {
       if (retriesLeft <= 0) {
@@ -57,6 +60,11 @@ const generateData = async () => {
 
       //   console.log(textData)
       const dom = new DOMParser().parseFromString(textData, "text/html");
+      if (!dom) {
+        throw new Error(
+          `Failed to parse HTML response for ${spacename}`,
+        );
+      }
 
       const avgsLastMonth = [
         ...dom.querySelectorAll(
@@ -105,13 +113,23 @@ const generateData = async () => {
     });
 
     console.log(spacesWithScores);
+    if (spacesWithScores.length === 0) {
+      const previousScores = await loadExistingScores();
+      if (previousScores) {
+        console.warn(
+          "All space data fetches failed; using existing scores",
+        );
+        await writeScoresFile(previousScores);
+        return;
+      }
+    }
     await writeScoresFile(spacesWithScores);
   } catch (error) {
     console.error("Failed to update hackspace data:", error);
     const previousScores = await loadExistingScores();
     if (previousScores) {
       console.warn(
-        "Using existing scores because the directory could not be fetched",
+        "Using existing scores because the update could not be completed",
       );
       await writeScoresFile(previousScores);
       return;
